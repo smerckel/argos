@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "argos"
+authors = [
+  { name="Lucas Merckelbach", email="lucas.merckelbach@hereon.de" },
+]
+description = "Reader for Argos messages from CLS as transmitted by Slocum gliders"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+		"arrow",
+	     	"zeep >= 4.2.1",
+]
+
+# version and license are set in setup.py
+dynamic = ["license", "version"]
+
+[project.urls]
+Homepage = "https://github.com/smerckel/argos"
+Issues = "https://github.com/smerckel/argos/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.setuptools.dynamic]
+version = {attr = "glider_profiles.__version__"}
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+#local_scheme = "node-and-date"
+local_scheme = "no-local-version"
+	     
+
