@@ -21,8 +21,10 @@ dependencies = [
 	     	"zeep >= 4.2.1",
 ]
 
-# version and license are set in setup.py
-dynamic = ["license", "version"]
+license = {text = "MIT License"}
+
+# version through setuptools_scm (git)
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/smerckel/argos"
@@ -32,12 +34,9 @@ Issues = "https://github.com/smerckel/argos/issues"
 where = ["src"]
 
 
-[tool.setuptools.dynamic]
-version = {attr = "glider_profiles.__version__"}
+#[tool.setuptools.dynamic]
+#version = {attr = "glider_profiles.__version__"}
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
-#local_scheme = "node-and-date"
 local_scheme = "no-local-version"
-	     
-

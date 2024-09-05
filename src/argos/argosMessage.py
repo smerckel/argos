@@ -71,12 +71,3 @@ class ArgosMessageDecoder(object):
             xn=int(x,16)
         return(xn)
 
-if __name__ == "__main__":    
-    s = '66CCE95B01B820FC7C06000501B7C7FC7C510006FFFFFFFFFFFF00000001E5' # 620603        
-    s = '66D30466FFFFFFFFFFFF100005B9F5FC7CC80400FFFFFFFFFFFF000000007E' # amadeus
-    amd = ArgosMessageDecoder()
-    data = amd(s)
-    for k, v in data.items():
-        print(f"{k:20s} {v}")
-
-    

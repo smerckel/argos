@@ -1,8 +1,10 @@
 import logging
 import re
+import os
+
 import zeep
 import xml.etree.ElementTree as ET
-import argosMessage
+from . import argosMessage
 
 logger = logging.getLogger("Argos")
 
@@ -10,40 +12,58 @@ logger = logging.getLogger("Argos")
 
 
 class CredentialsReader:
+    PATH = os.path.join(os.environ["HOME"], ".local", "share", "argos")
     def __init__(self, filepath):
         self.filepath = filepath
         self.wsdl = None
         self.username = None
         self.password = None
-        self._read_config()
+        self._check_path()
+        self._open_config()
 
-    def _read_config(self):
-        try:
-            with open(self.filepath, 'r') as file:
-                for line in file:
-                    # Strip whitespace and ignore comments
-                    line = line.strip()
-                    if line.startswith("#") or not line:
-                        continue
-                    
-                    # Match the username and password patterns
-                    username_match = re.match(r'^username\s*=\s*(.*)$', line, re.IGNORECASE)
-                    password_match = re.match(r'^password\s*=\s*(.*)$', line, re.IGNORECASE)
-                    wsdl_match = re.match(r'^wsdl\s*=\s*(.*)$', line, re.IGNORECASE)
-                    
-                    if username_match:
-                        self.username = self._extract_value(username_match.group(1))
-                    elif password_match:
-                        self.password = self._extract_value(password_match.group(1))
-                    elif wsdl_match:
-                        self.wsdl = self._extract_value(wsdl_match.group(1))
-                    
-                # Ensure both username and password were found
-                if self.wsdl is None:
-                    raise ValueError("The configuration file must contain at least wsdl info, and ideally also username and password.")
+    def _check_path(self):
+        if not os.path.exists(CredentialsReader.PATH):
+            raise FileNotFoundError(f"The path {CredentialsReader.PATH} does not exist.")
+
+    def _open_config(self):
+        tried_paths = []
+        for p in [self.filepath, os.path.join(CredentialsReader.PATH, self.filepath)]:
+            logger.debug(f"Trying credential file {p}...")
+            try:
+                with open(p, 'r') as fp:
+                    self._read_config(fp)
+            except FileNotFoundError:
+                tried_paths.append(p)
+            else:
+                tried_paths=[]
+                break
+                
+        if tried_paths:
+            raise FileNotFoundError("No credential files were not found.")
+                
         
-        except FileNotFoundError:
-            raise FileNotFoundError(f"The file {self.filepath} was not found.")
+    def _read_config(self, fp):
+        for line in fp:
+            # Strip whitespace and ignore comments
+            line = line.strip()
+            if line.startswith("#") or not line:
+                continue
+
+            # Match the username and password patterns
+            username_match = re.match(r'^username\s*=\s*(.*)$', line, re.IGNORECASE)
+            password_match = re.match(r'^password\s*=\s*(.*)$', line, re.IGNORECASE)
+            wsdl_match = re.match(r'^wsdl\s*=\s*(.*)$', line, re.IGNORECASE)
+
+            if username_match:
+                self.username = self._extract_value(username_match.group(1))
+            elif password_match:
+                self.password = self._extract_value(password_match.group(1))
+            elif wsdl_match:
+                self.wsdl = self._extract_value(wsdl_match.group(1))
+
+        # Ensure both username and password were found
+        if self.wsdl is None:
+            raise ValueError("The configuration file must contain at least wsdl info, and ideally also username and password.")
     
     def _extract_value(self, value):
         # Strip the surrounding quotes if present
@@ -86,9 +106,13 @@ class ArgosProgramInfo(object):
             self.username, self.password, wsdl = cr.get_credentials()
         else:
             self.username, self.password = None, None
-        client = zeep.Client(wsdl=wsdl)
-        self.service = client.service.getPlatformList
+        self.service = self.service_factory(wsdl)
 
+        
+    def service_factory(self, wsdl):
+        client = zeep.Client(wsdl=wsdl)
+        service = client.service.getPlatformList
+        return service
         
     def retrieve(self, username=None, password=None):
         ''' Retrieves all information from webservice for given username and password
@@ -182,11 +206,20 @@ class ArgosPlatformInfo(object):
             self.username, self.password, wsdl = cr.get_credentials()
         else:
             self.username, self.password = None, None
-        client = zeep.Client(wsdl=wsdl)
-        self.service = client.service.getXml
+        self.service = self.service_factory(wsdl)
         self.argos_message_decoder = argosMessage.ArgosMessageDecoder()
         self.number_of_satellite_passes = None
 
+        self.service = self.service_factory(wsdl)
+
+        
+    def service_factory(self, wsdl):
+        client = zeep.Client(wsdl=wsdl)
+        service = client.service.getXml
+        return service
+
+
+        
     def retrieve(self, platformId, username=None, password=None, number_of_days_from_now=1, satellitePassNumber=0):
         ''' Retrieves all information from webservice for given username and password
 
@@ -292,16 +325,3 @@ class ArgosPlatformInfo(object):
                 best_messages.append(data)
         return best_messages
         
-if 0:    
-    api = ArgosProgramInfo(credentials='argos_login.txt')
-    api.retrieve()
-    programNumber = api.get_programs()[0]
-    platformIds = api.get_platforms(programNumber)
-
-if 0:
-    api = ArgosPlatformInfo(credentials='argos_login.txt')
-    info = api.retrieve('260603', number_of_days_from_now=15)
-    #api.retrieve('260604')
-    #api.retrieve('260682')
-    #api.retrieve('27011')
-    #api.retrieve('30649')
