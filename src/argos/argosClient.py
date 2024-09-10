@@ -107,7 +107,8 @@ class ArgosProgramInfo(object):
         else:
             self.username, self.password = None, None
         self.service = self.service_factory(wsdl)
-
+        self.info_dict={}
+        
         
     def service_factory(self, wsdl):
         client = zeep.Client(wsdl=wsdl)
@@ -243,14 +244,19 @@ class ArgosPlatformInfo(object):
         password = password or self.password
         if username is None or password is None:
             raise ValueError('No credentials are supplied. Cannot continue.')
-        s = self.service(username=username, password=password, platformId=platformId, displayRawData=True, nbDaysFromNow=number_of_days_from_now)
-        logger.debug(f"String returned from getXml call:\n{s}")
         self.platformId=platformId
+        s = self.service(username=username, password=password, platformId=platformId, displayRawData=False, displayImageLocation=True, nbDaysFromNow=number_of_days_from_now)
+        logger.debug(f"String returned from getXml call:\n{s}")
+
         self.root = ET.fromstring(s)
+
+        s = self.service(username=username, password=password, platformId=platformId, displayRawData=True, displayImageLocation=False, nbDaysFromNow=number_of_days_from_now)
+        logger.debug(f"String returned from getXml call:\n{s}")
+        self.rootData = ET.fromstring(s)
         return self.info()
         
         
-    def info(self, satellitePassNumber=0):
+    def info(self, satellitePassNumber=0, require_crc_check=True):
         ''' Selects information for specific satellite pass.
 
         Parameters
@@ -267,6 +273,10 @@ class ArgosPlatformInfo(object):
             if satellitePassNumber >= self.number_of_satellite_passes:
                 logger.error(f"Cannot return requested satellite pass. There are only {self.number_of_satellite_passes} available")
                 return dict()
+
+    def 
+
+    def infoLocation(self, satellitePassNumber=0):
         info_dict = dict()
         programs = self.root.findall('program')
         found = False
@@ -276,11 +286,35 @@ class ArgosPlatformInfo(object):
                 break
         if found:
             satellitePasses = p.find('platform').findall('satellitePass')
+            satellitePasses.reverse()
             self.number_of_satellite_passes = len(satellitePasses)
             for i, sp in enumerate(satellitePasses):
                 messages = sp.findall('message')
                 best_messages = self._find_best_messages(messages)
-                best_message= self._select_best_message(best_messages)
+                best_message= self._select_best_message(best_messages, require_crc_check)
+                if (i==satellitePassNumber):
+                    info_dict = best_message
+                    break
+        else:
+            self.number_of_satellite_passes = 0
+        return info_dict
+    
+    def infoData(self, satellitePassNumber=0, require_crc_check=True):
+        info_dict = dict()
+        programs = self.root.findall('program')
+        found = False
+        for p in programs:
+            if p.find('platform').find('platformId').text == self.platformId:
+                found = True
+                break
+        if found:
+            satellitePasses = p.find('platform').findall('satellitePass')
+            satellitePasses.reverse()
+            self.number_of_satellite_passes = len(satellitePasses)
+            for i, sp in enumerate(satellitePasses):
+                messages = sp.findall('message')
+                best_messages = self._find_best_messages(messages)
+                best_message= self._select_best_message(best_messages, require_crc_check)
                 if (i==satellitePassNumber):
                     info_dict = best_message
                     break
@@ -288,18 +322,21 @@ class ArgosPlatformInfo(object):
             self.number_of_satellite_passes = 0
         return info_dict
 
-    def _select_best_message(self, message_list):
+    def _select_best_message(self, message_list, require_crc_check):
         ''' Selects best message from a list of message dictionaries.
 
         For a given list of message dictionaries, the newest one that has a CRC check is returned.
         If no message has a positive CRC, the newest message is returned.
         '''
         ml = message_list.copy()
-        for m in ml:
-            if m['crc']:
-                break
-        if not m['crc']:
-            logger.info("None of the available messages for this pass has a valid CRC. The newest is returned.")
+        if require_crc_check:
+            for m in ml:
+                if m['crc']:
+                    break
+            if not m['crc']:
+                logger.info("None of the available messages for this pass has a valid CRC. The newest is returned.")
+                m = ml[0]
+        else:
             m = ml[0]
         return m
         

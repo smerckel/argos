@@ -1,39 +1,12 @@
 from  argos import argosClient
 
-# Find out what programNumber and platforms are available.
-
-# The examples assume you have an account with CLS and a programNumber.
-# You will need to create a file with your credentials
-# username = "joe"
-# password = "123"
-# wsdl = "https://url"
-#
-# or you can supply the wsdl to the constructor and use your username
-# and password in the script (retrieve method). This is not recommended.
-#
-# Due to the wishes of CLS, the wsdl path is not disclosed, but can be
-# requested from CLS.
-#
-# In the examples below the argos_login.txt contains this info. It can
-# be in the current working directory, or it can be placed in
-# ~/.locall/share/argos.
-
-api = argosClient.ArgosProgramInfo(credentials="argos_login.txt")
-api.retrieve()
-
-# or alternatively:
-# api = argosClient.ArgosProgramInfo(wsdl="...")
-# api.retrieve(username='joe',password='donald')
-
-programs = api.get_programs()
-platforms = api.get_platforms(programs[0])
-
-print(f"The programs available are {programs}.")
-print(f"The platforms available in the first program are {platforms}.")
-
+import logging
+logging.basicConfig(level=logging.WARNING)
+logger = argosClient.logger
+logger.setLevel(logging.DEBUG)
 
 api = argosClient.ArgosPlatformInfo(credentials="argos_login.txt")
-info = api.retrieve(platformId='260603', number_of_days_from_now=20)
+info = api.retrieve(platformId='260603', number_of_days_from_now=1)
 for k, v in info.items():
     print(f"{k:>20s} : {v}")
 
@@ -138,4 +111,13 @@ The platforms available in the first program are ['27011', '30649', '260603', '2
 2024-09-01T00:21:28.000Z   4479.410  72893.370 CRC:False
 2024-09-05T11:49:10.000Z      0.000      0.000 CRC:False
 2024-09-05T11:49:10.000Z      0.000      0.000 CRC:False'''
+
+
+
+
+program = api.root.find('program')
+platform = program.find('platform')
+satellitePasses = platform.findall('satellitePass')
+sp0 = satellitePasses[0]
+sp1 = satellitePasses[-1]
 
