@@ -273,9 +273,9 @@ class ArgosPlatformInfo(object):
             if satellitePassNumber >= self.number_of_satellite_passes:
                 logger.error(f"Cannot return requested satellite pass. There are only {self.number_of_satellite_passes} available")
                 return dict()
-
-    def 
-
+        info_dict = self.infoLocation(satellitePassNumber)
+        Q
+        
     def infoLocation(self, satellitePassNumber=0):
         info_dict = dict()
         programs = self.root.findall('program')
@@ -289,12 +289,7 @@ class ArgosPlatformInfo(object):
             satellitePasses.reverse()
             self.number_of_satellite_passes = len(satellitePasses)
             for i, sp in enumerate(satellitePasses):
-                messages = sp.findall('message')
-                best_messages = self._find_best_messages(messages)
-                best_message= self._select_best_message(best_messages, require_crc_check)
-                if (i==satellitePassNumber):
-                    info_dict = best_message
-                    break
+                print(f"{i}) {sp.find('bestMsgDate').text} {sp.find('location').find('locationDate').text} {len(sp.findall('location'))}")
         else:
             self.number_of_satellite_passes = 0
         return info_dict
