@@ -41,7 +41,7 @@ class ArgosMessageDecoder(object):
             data[k]=self.hexToDec(hexValue,size,typ)*factor
             position+=size
         data['crc']=self.checksum_8bit(message)
-        data['ctime'] = arrow.get(data['present_time']).ctime()
+        data['date'] = arrow.get(data['present_time']).format('YYYY-MM-DDTHH:mm:ss[Z]')
         return data
     
     def checksum_8bit(self, message):
