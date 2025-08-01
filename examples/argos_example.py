@@ -1,41 +1,12 @@
 from  argos import argosClient
 
-# Find out what programNumber and platforms are available.
-
-# The examples assume you have an account with CLS and a programNumber.
-# You will need to create a file with your credentials
-# username = "joe"
-# password = "123"
-# wsdl = "https://url"
-#
-# or you can supply the wsdl to the constructor and use your username
-# and password in the script (retrieve method). This is not recommended.
-#
-# Due to the wishes of CLS, the wsdl path is not disclosed, but can be
-# requested from CLS.
-#
-# In the examples below the argos_login.txt contains this info. It can
-# be in the current working directory, or it can be placed in
-# ~/.locall/share/argos.
-
-api = argosClient.ArgosProgramInfo(credentials="argos_login.txt")
-api.retrieve()
-
-# or alternatively:
-# api = argosClient.ArgosProgramInfo(wsdl="...")
-# api.retrieve(username='joe',password='donald')
-
-programs = api.get_programs()
-platforms = api.get_platforms(programs[0])
-
-print(f"The programs available are {programs}.")
-print(f"The platforms available in the first program are {platforms}.")
-
+import logging
+logging.basicConfig(level=logging.WARNING)
+logger = argosClient.logger
+logger.setLevel(logging.DEBUG)
 
 api = argosClient.ArgosPlatformInfo(credentials="argos_login.txt")
-info = api.retrieve(platformId='260603', number_of_days_from_now=20)
-for k, v in info.items():
-    print(f"{k:>20s} : {v}")
+api.retrieve(platformId='260603', number_of_days_from_now=20)
 
 # Now we have also the number of satellitePasses for the period
 # specified, after calling the retrieve() method once. We have a best
@@ -49,6 +20,9 @@ for k, v in info.items():
 for i in range(api.number_of_satellite_passes):
     info = api.info(satellitePassNumber=i)
     print(f"{info['date']:20s} {info['lat']:10.3f} {info['lon']:10.3f} CRC:{info['crc']}")
+
+
+
 
 # It may be that if your platform has not sent any argos messages
 # during the last 20 days, then there is nothing to show. Below is some example output.
@@ -139,3 +113,13 @@ The platforms available in the first program are ['27011', '30649', '260603', '2
 2024-09-05T11:49:10.000Z      0.000      0.000 CRC:False
 2024-09-05T11:49:10.000Z      0.000      0.000 CRC:False'''
 
+info = api.get_info(minimum_quality_flag=0)
+print("Date                       latitude       longitude   CRC")
+print("-----------------------------------------------------------")
+for _info in info:
+    if _info['gps_location']:
+        print(f"{_info['gps_location']['date']:20}", end='')
+        print(f"{_info['gps_location']['lat']:16.4f}", end='')
+        print(f"{_info['gps_location']['lon']:16.4f}  ", end='')
+        print(f"{_info['gps_location']['crc']}")
+        

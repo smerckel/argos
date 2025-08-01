@@ -1,6 +1,7 @@
 import logging
 import re
 import os
+from itertools import chain
 
 import zeep
 import xml.etree.ElementTree as ET
@@ -8,10 +9,26 @@ from . import argosMessage
 
 logger = logging.getLogger("Argos")
 
+CRC = 2
+BESTMGS = 1
 
 
 
 class CredentialsReader:
+    """ Class to read username, password and url from file
+
+    Parameters
+    ----------
+    filename : str
+        Filename of configuration file
+
+    The priority list is as follows:
+     - current working directory
+     - $HOME/.local/share/argos
+
+    If the file does not exist in either directory, a FileNotFoundError is thrown.
+    """
+    
     PATH = os.path.join(os.environ["HOME"], ".local", "share", "argos")
     def __init__(self, filepath):
         self.filepath = filepath
@@ -76,6 +93,14 @@ class CredentialsReader:
         return value
 
     def get_credentials(self):
+        """ Returns username, password and url from file
+
+        Returns
+        -------
+        (str, str, str)
+            username, password, and url
+
+        """
         return self.username, self.password, self.wsdl
 
 
@@ -107,7 +132,8 @@ class ArgosProgramInfo(object):
         else:
             self.username, self.password = None, None
         self.service = self.service_factory(wsdl)
-
+        self.info_dict={}
+        
         
     def service_factory(self, wsdl):
         client = zeep.Client(wsdl=wsdl)
@@ -209,7 +235,7 @@ class ArgosPlatformInfo(object):
         self.service = self.service_factory(wsdl)
         self.argos_message_decoder = argosMessage.ArgosMessageDecoder()
         self.number_of_satellite_passes = None
-
+        self.decoder = argosMessage.ArgosMessageDecoder()
         self.service = self.service_factory(wsdl)
 
         
@@ -220,7 +246,7 @@ class ArgosPlatformInfo(object):
 
 
         
-    def retrieve(self, platformId, username=None, password=None, number_of_days_from_now=1, satellitePassNumber=0):
+    def retrieve(self, platformId, username=None, password=None, number_of_days_from_now=1):
         ''' Retrieves all information from webservice for given username and password
 
         Parameters
@@ -243,14 +269,16 @@ class ArgosPlatformInfo(object):
         password = password or self.password
         if username is None or password is None:
             raise ValueError('No credentials are supplied. Cannot continue.')
-        s = self.service(username=username, password=password, platformId=platformId, displayRawData=True, nbDaysFromNow=number_of_days_from_now)
-        logger.debug(f"String returned from getXml call:\n{s}")
         self.platformId=platformId
+        s = self.service(username=username, password=password, platformId=platformId, displayRawData=True, displayLocation=True, nbDaysFromNow=number_of_days_from_now)
+        logger.debug(f"String returned from getXml call:\n{s}")
+
         self.root = ET.fromstring(s)
-        return self.info()
+        if self.root.get("data") is None:
+            logger.error("No data returned.")
+            raise ValueError("No data returned.")
         
-        
-    def info(self, satellitePassNumber=0):
+    def get_info(self, latest_only=False, minimum_quality_flag=CRC):
         ''' Selects information for specific satellite pass.
 
         Parameters
@@ -267,61 +295,54 @@ class ArgosPlatformInfo(object):
             if satellitePassNumber >= self.number_of_satellite_passes:
                 logger.error(f"Cannot return requested satellite pass. There are only {self.number_of_satellite_passes} available")
                 return dict()
-        info_dict = dict()
-        programs = self.root.findall('program')
-        found = False
-        for p in programs:
-            if p.find('platform').find('platformId').text == self.platformId:
-                found = True
-                break
-        if found:
-            satellitePasses = p.find('platform').findall('satellitePass')
-            self.number_of_satellite_passes = len(satellitePasses)
-            for i, sp in enumerate(satellitePasses):
-                messages = sp.findall('message')
-                best_messages = self._find_best_messages(messages)
-                best_message= self._select_best_message(best_messages)
-                if (i==satellitePassNumber):
-                    info_dict = best_message
-                    break
+        satellitePasses = self.root.find("program").find("platform").findall("satellitePass")
+
+        locations = [sp.find('location') for sp in satellitePasses]
+        messages = [sp.findall('message') for sp in satellitePasses]
+        bestMsgDates = [sp.find('bestMsgDate') for sp in satellitePasses]
+
+        results = []
+        for location, mesgList, bestMsgDate in zip(locations, messages, bestMsgDates):
+            try:
+                argos_location = dict(latitude=location.find("latitude").text,
+                                      longitude=location.find("longitude").text,
+                                      date=location.find("locationDate").text)
+            except AttributeError:
+                argos_location = None
+            best_payload, quality_flag = self._select_best_payload(mesgList, bestMsgDate)
+            if quality_flag:
+                gps_location = self.decoder(best_payload)
+            else:
+                gps_location = {}
+            if quality_flag >= minimum_quality_flag:
+                results.append(dict(argos_location = argos_location,
+                                    gps_location = gps_location,
+                                    gps_location_qf = quality_flag)
+                               )
+        results.reverse()
+        if latest_only:
+            return results[0]
         else:
-            self.number_of_satellite_passes = 0
-        return info_dict
+            return results
+    
 
-    def _select_best_message(self, message_list):
-        ''' Selects best message from a list of message dictionaries.
+            
 
-        For a given list of message dictionaries, the newest one that has a CRC check is returned.
-        If no message has a positive CRC, the newest message is returned.
-        '''
-        ml = message_list.copy()
-        for m in ml:
-            if m['crc']:
-                break
-        if not m['crc']:
-            logger.info("None of the available messages for this pass has a valid CRC. The newest is returned.")
-            m = ml[0]
-        return m
-        
-    def _find_best_messages(self, messages):
-        ''' Finds best message for a given transmission window
-
-        Returns the best message of a given transmission window based on the time of the message and the time
-        of the stronges signal.
-        '''
-       
-        best_messages = []
-        for message in messages:
-            bestDate = message.find('bestDate').text
-            collect = message.findall('collect')
-            rawData = None
-            for _collect in collect:
-                _date = _collect.find('date')
-                if _date.text == bestDate:
-                    rawData = _collect.find('rawData').text
-            if rawData:
-                data = self.argos_message_decoder(rawData)
-                data['date'] = bestDate
-                best_messages.append(data)
-        return best_messages
-        
+    def _select_best_payload(self, messages, bestMsgDate):
+        bestMsgDateStr = bestMsgDate.text
+        payloads = [m.find('collect').find('rawData').text for m in messages]
+        dates = [m.find('collect').find('date').text for m in messages]
+        crcs = [self.decoder.checksum_8bit(p) for p in payloads]
+        # best option crc True and date = bestMsgDateStr
+        best_payloads = [p for p,crc,date in zip(payloads, crcs, dates) if crc and date==bestMsgDateStr]
+        if best_payloads:
+            return best_payloads[0], 3
+        # Take any with crc==True
+        best_payloads = [p for p,crc in zip(payloads, crcs) if crc]
+        if best_payloads:
+            return best_payloads[0], 2
+        # Take best date
+        best_payloads = [p for p,date in zip(payloads, dates) if date==bestMsgDateStr]
+        if best_payloads:
+            return best_payloads[0], 1
+        return None, 0
