@@ -53,8 +53,7 @@ for i in range(api.number_of_satellite_passes):
 # It may be that if your platform has not sent any argos messages
 # during the last 20 days, then there is nothing to show. Below is some example output.
     
-example_output=    
-'''Example output:
+example_output='''Example output:
 
 The programs available are ['3932'].
 The platforms available in the first program are ['27011', '30649', '260603', '260604', '260682'].
