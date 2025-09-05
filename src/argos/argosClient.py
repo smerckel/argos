@@ -274,8 +274,13 @@ class ArgosPlatformInfo(object):
         logger.debug(f"String returned from getXml call:\n{s}")
 
         self.root = ET.fromstring(s)
-        self.info =  self.get_info()
-        return self.info
+        errors = self.root.find("errors")
+        if errors is None:
+            self.info =  self.get_info()
+            return self.info
+        else:
+            raise ValueError("Call did not contain data.")
+        
 
     def get_payload(self, satellitePassNumber=0):
         return self.info['payload'][satellitePassNumber]
