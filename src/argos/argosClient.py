@@ -274,10 +274,12 @@ class ArgosPlatformInfo(object):
         logger.debug(f"String returned from getXml call:\n{s}")
 
         self.root = ET.fromstring(s)
-        if self.root.get("data") is None:
-            logger.error("No data returned.")
-            raise ValueError("No data returned.")
-        
+        self.info =  self.get_info()
+        return self.info
+
+    def get_payload(self, satellitePassNumber=0):
+        return self.info['payload'][satellitePassNumber]
+            
     def get_info(self, latest_only=False, minimum_quality_flag=CRC):
         ''' Selects information for specific satellite pass.
 
@@ -291,12 +293,12 @@ class ArgosPlatformInfo(object):
         dict
            dictionary with payload information 
         '''
-        if not self.number_of_satellite_passes is None:
-            if satellitePassNumber >= self.number_of_satellite_passes:
-                logger.error(f"Cannot return requested satellite pass. There are only {self.number_of_satellite_passes} available")
-                return dict()
+        platformId = self.root.find("program/platform/platformId").text
+        platformType = self.root.find("program/platform/platformType").text
+        platformModel = self.root.find("program/platform/platformModel").text
+        
         satellitePasses = self.root.find("program").find("platform").findall("satellitePass")
-
+        
         locations = [sp.find('location') for sp in satellitePasses]
         messages = [sp.findall('message') for sp in satellitePasses]
         bestMsgDates = [sp.find('bestMsgDate') for sp in satellitePasses]
@@ -320,10 +322,15 @@ class ArgosPlatformInfo(object):
                                     gps_location_qf = quality_flag)
                                )
         results.reverse()
-        if latest_only:
-            return results[0]
-        else:
-            return results
+        self.number_of_satellite_passes = len(results)
+
+        payload = results
+    
+        d = dict(platformId=platformId,
+                 platformType=platformType,
+                 platformModel=platformModel,
+                 payload=payload)
+        return d
     
 
             

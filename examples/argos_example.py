@@ -5,8 +5,9 @@ logging.basicConfig(level=logging.WARNING)
 logger = argosClient.logger
 logger.setLevel(logging.DEBUG)
 
+# Glider Echo
 api = argosClient.ArgosPlatformInfo(credentials="argos_login.txt")
-api.retrieve(platformId='260603', number_of_days_from_now=20)
+info = api.retrieve(platformId='260603', number_of_days_from_now=20)
 
 # Now we have also the number of satellitePasses for the period
 # specified, after calling the retrieve() method once. We have a best
@@ -18,9 +19,9 @@ api.retrieve(platformId='260603', number_of_days_from_now=20)
 # values have to be considered "in context".
 
 for i in range(api.number_of_satellite_passes):
-    info = api.info(satellitePassNumber=i)
-    print(f"{info['date']:20s} {info['lat']:10.3f} {info['lon']:10.3f} CRC:{info['crc']}")
-
+    info = api.get_payload(satellitePassNumber=i)
+    gps_location = info['gps_location']
+    print(f"{gps_location['date']:20s} {gps_location['lat']:10.3f} {gps_location['lon']:10.3f} CRC:{gps_location['crc']}")
 
 
 
@@ -116,7 +117,7 @@ The platforms available in the first program are ['27011', '30649', '260603', '2
 info = api.get_info(minimum_quality_flag=0)
 print("Date                       latitude       longitude   CRC")
 print("-----------------------------------------------------------")
-for _info in info:
+for _info in info['payload']:
     if _info['gps_location']:
         print(f"{_info['gps_location']['date']:20}", end='')
         print(f"{_info['gps_location']['lat']:16.4f}", end='')
