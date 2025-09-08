@@ -329,7 +329,10 @@ class ArgosPlatformInfo(object):
         results.reverse()
         self.number_of_satellite_passes = len(results)
 
-        payload = results
+        if latest_only:
+            payload = results[0]
+        else:
+            payload = results
     
         d = dict(platformId=platformId,
                  platformType=platformType,
