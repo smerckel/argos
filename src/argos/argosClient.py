@@ -159,7 +159,7 @@ class ArgosProgramInfo(object):
         s = self.service(username=username, password=password)
         self.root = ET.fromstring(s)
         self.info_dict = self._info()
-
+        self._service_string = s
 
     def get_programs(self):
         ''' Gets list of program numbers
@@ -271,6 +271,7 @@ class ArgosPlatformInfo(object):
             raise ValueError('No credentials are supplied. Cannot continue.')
         self.platformId=platformId
         s = self.service(username=username, password=password, platformId=platformId, displayRawData=True, displayLocation=True, nbDaysFromNow=number_of_days_from_now)
+        self._service_string = s
         logger.debug(f"String returned from getXml call:\n{s}")
 
         self.root = ET.fromstring(s)
@@ -330,7 +331,11 @@ class ArgosPlatformInfo(object):
         self.number_of_satellite_passes = len(results)
 
         if latest_only:
-            payload = results[0]
+            try:
+                payload = results[0]
+            except IndexError:
+                # no data present. Return empty dict.
+                payload = {}
         else:
             payload = results
     
