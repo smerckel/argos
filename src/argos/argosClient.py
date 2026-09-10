@@ -276,11 +276,20 @@ class ArgosPlatformInfo(object):
 
         self.root = ET.fromstring(s)
         errors = self.root.find("errors")
-        if errors is None:
-            self.info =  self.get_info()
-            return self.info
-        else:
-            raise ValueError("Call did not contain data.")
+        if errors: 
+            for error in errors:
+                code = error.get("code")
+                match code:
+                    case '2': # no data
+                        mesg = "Call did not contain data."
+                    case '4': # too many data
+                        mesg = "Number of responses capped."
+                    case _:
+                        mesg = f"Some other error: {error}."
+                        raise ValueError(msg)
+            logger.info(mesg)
+        self.info =  self.get_info()                    
+        return self.info
         
 
     def get_payload(self, satellitePassNumber=0):
@@ -308,7 +317,6 @@ class ArgosPlatformInfo(object):
         locations = [sp.find('location') for sp in satellitePasses]
         messages = [sp.findall('message') for sp in satellitePasses]
         bestMsgDates = [sp.find('bestMsgDate') for sp in satellitePasses]
-
         results = []
         for location, mesgList, bestMsgDate in zip(locations, messages, bestMsgDates):
             try:
@@ -338,11 +346,12 @@ class ArgosPlatformInfo(object):
                 payload = {}
         else:
             payload = results
-    
         d = dict(platformId=platformId,
                  platformType=platformType,
                  platformModel=platformModel,
-                 payload=payload)
+                 payload=payload,
+                 bestMsgDate=bestMsgDate.text
+                 )
         return d
     
 
